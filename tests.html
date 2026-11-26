@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bingo 75 Pro — Testes automáticos</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; padding: 24px;
+    font-family: "Segoe UI", Inter, system-ui, sans-serif;
+    background: #060d24; color: #eef3ff;
+  }
+  h1 { font-size: 20px; letter-spacing: .1em; color: #f6c945; margin: 0 0 4px; }
+  .sub { color: #95a4c4; font-size: 12px; margin-bottom: 18px; }
+  .summary {
+    display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px;
+  }
+  .pill {
+    padding: 8px 14px; border-radius: 999px; font-size: 12px; font-weight: 800;
+    border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05);
+  }
+  .pill.ok { color: #46eba4; border-color: rgba(47,209,139,.5); background: rgba(47,209,139,.12); }
+  .pill.fail { color: #ff98a2; border-color: rgba(255,77,94,.5); background: rgba(255,77,94,.12); }
+  .group { margin-bottom: 20px; }
+  .group h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .16em;
+    color: #f6c945; margin: 0 0 8px; padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,.09);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  td { padding: 6px 9px; border-bottom: 1px solid rgba(255,255,255,.05); vertical-align: top; }
+  td.st { width: 46px; font-weight: 900; }
+  td.st.ok { color: #46eba4; }
+  td.st.fail { color: #ff98a2; }
+  td.note { color: #8e9dbe; font-size: 11px; font-family: ui-monospace, Consolas, monospace; }
+  tr.failrow { background: rgba(255,77,94,.08); }
+  a { color: #f6c945; }
+</style>
+</head>
+<body>
+<h1>BINGO 75 PRO — SUÍTE DE TESTES</h1>
+<p class="sub">Executa verificações de sorteio, locutor, cartelas, monitoramento, vitória, pedra maior e persistência.
+  <a href="index.html">← voltar ao aplicativo</a></p>
+
+<div class="summary" id="summary"></div>
+<div id="results"></div>
+
+<!-- apenas a lógica é carregada: nenhuma UI é necessária -->
+<script src="js/core.js"></script>
+<script src="js/persistence.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/voice.js"></script>
+<script src="js/players.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/winners.js"></script>
+<script>
+(function () {
+  'use strict';
+  const B = window.Bingo;
+  const groups = [];
+  let current = null;
+
+  function group(name) {
+    current = { name, tests: [] };
+    groups.push(current);
+  }
+
+  function test(name, fn) {
+    let ok = false, note = '';
+    try {
+      const r = fn();
+      if (r === true || r === undefined) { ok = true; }
+      else if (r && typeof r === 'object') { ok = !!r.ok; note = r.note || ''; }
+      else { ok = false; note = 'retorno falsy: ' + String(r); }
+    } catch (e) {
+      ok = false;
+      note = (e && e.message) || String(e);
+    }
+    current.tests.push({ name, ok, note });
+  }
+
+  function assert(cond, msg) {
+    if (!cond) throw new Error(msg || 'asserção falhou');
+  }
+
+  /* =========================================================
+     1. NÚCLEO — letras e faixas
+     ========================================================= */
+  group('Núcleo · letras, faixas e pronúncia');
+
+  test('75 números mapeados em letras corretas', () => {
+    for (let n = 1; n <= 75; n++) {
+      const L = B.letterFor(n);
+      assert(L === B.LETTERS[Math.floor((n - 1) / 15)], `letra errada para ${n}: ${L}`);
+    }
+    assert(B.letterFor(0) === null && B.letterFor(76) === null);
+    return { ok: true, note: 'B 1-15 · I 16-30 · N 31-45 · G 46-60 · O 61-75' };
+  });
+
+  test('faixas de cada coluna conferem', () => {
+    assert(JSON.stringify(B.RANGES.B) === '[1,15]');
+    assert(JSON.stringify(B.RANGES.I) === '[16,30]');
+    assert(JSON.stringify(B.RANGES.N) === '[31,45]');
+    assert(JSON.stringify(B.RANGES.G) === '[46,60]');
+    assert(JSON.stringify(B.RANGES.O) === '[61,75]');
+    return true;
+  });
+
+  test('mapeamento fonético das letras', () => {
+    assert(B.PHONETIC.B === 'Bê');
+    assert(B.PHONETIC.I === 'Í');
+    assert(B.PHONETIC.N === 'Êne');
+    assert(B.PHONETIC.G === 'Gê');
+    assert(B.PHONETIC.O === 'Ó');
+    return true;
+  });
+
+  test('pronúncia dos números por extenso (amostras do enunciado)', () => {
+    const cases = [
+      [1, 'Bê, número um'],
+      [7, 'Bê, número sete'],
+      [15, 'Bê, número quinze'],
+      [16, 'Í, número dezesseis'],
+      [22, 'Í, número vinte e dois'],
+      [31, 'Êne, número trinta e um'],
+      [45, 'Êne, número quarenta e cinco'],
+      [46, 'Gê, número quarenta e seis'],
+      [58, 'Gê, número cinquenta e oito'],
+      [61, 'Ó, número sessenta e um'],
+      [75, 'Ó, número setenta e cinco']
+    ];
+    cases.forEach(([n, expected]) => {
+      const got = B.speechFor(n);
+      assert(got === expected, `nº ${n}: "${got}" ≠ "${expected}"`);
+    });
+    return { ok: true, note: `${cases.length} casos do enunciado conferidos` };
+  });
+
+  test('todos os 75 números geram texto não vazio e sem dígitos', () => {
+    for (let n = 1; n <= 75; n++) {
+      const t = B.speechFor(n);
+      assert(t.length > 6, `texto curto para ${n}`);
+      assert(!/\d/.test(t), `texto de ${n} contém dígito: "${t}"`);
+    }
+    return true;
+  });
+
+  test('rótulo visual B-07 e código de cartela falado', () => {
+    assert(B.labelFor(7) === 'B-07');
+    assert(B.labelFor(75) === 'O-75');
+    assert(window.spokenCardCode('001') === 'zero zero um');
+    assert(window.spokenCardCode('C001') === 'zero zero um');
+    return true;
+  });
+
+  /* =========================================================
+     2. SORTEIO — aleatoriedade e não repetição
+     ========================================================= */
+  group('Sorteio · aleatoriedade, não repetição e ciclo completo');
+
+  test('PRNG sempre dentro do intervalo', () => {
+    for (let i = 0; i < 3000; i++) {
+      const v = B.randomInt(75);
+      assert(Number.isInteger(v) && v >= 0 && v < 75, `valor inválido ${v}`);
+    }
+    return true;
+  });
+
+  test('shuffle não perde nem duplica elementos', () => {
+    for (let round = 0; round < 40; round++) {
+      const src = Array.from({ length: 75 }, (_, i) => i + 1);
+      const out = B.shuffle(src);
+      assert(out.length === 75, 'tamanho diferente');
+      assert(new Set(out).size === 75, 'elementos duplicados');
+      assert(src.join() === Array.from({ length: 75 }, (_, i) => i + 1).join(), 'fonte mutada');
+    }
+    return true;
+  });
+
+  test('75 sorteios pelo motor: nenhuma repetição e cobertura total', () => {
+    const E = window.BingoEngine;
+    E.newGame();
+    const seen = new Set();
+    // sorteio determinístico direto no estado, simulando o pool
+    for (let i = 0; i < 75; i++) {
+      const pool = E.remaining();
+      assert(pool.length === 75 - i, `pool com tamanho errado em ${i}`);
+      const pick = pool[B.randomInt(pool.length)];
+      assert(!seen.has(pick), `repetiu ${pick}`);
+      seen.add(pick);
+      E.state.history.push({ num: pick, letter: B.letterFor(pick), at: Date.now(), order: i + 1 });
+    }
+    assert(seen.size === 75, 'não cobriu 75 números');
+    assert(E.remainingCount() === 0, 'ainda restam bolas');
+    for (let n = 1; n <= 75; n++) assert(seen.has(n), `faltou ${n}`);
+    E.newGame();
+    return { ok: true, note: 'cobertura 1..75 completa sem repetição' };
+  });
+
+  test('desfazer devolve a bola ao pool', () => {
+    const E = window.BingoEngine;
+    E.newGame();
+    E.state.status = 'paused';
+    const n = 42;
+    E.state.history.push({ num: n, letter: B.letterFor(n), at: Date.now(), order: 1 });
+    E.state.lastBall = E.state.history[0];
+    assert(!E.remaining().includes(n) === false ? false : true, 'estado inicial inválido');
+    assert(E.remaining().includes(n) === false, 'bola deveria estar fora do pool');
+    const r = E.undoLast();
+    assert(r.ok, 'undo falhou');
+    assert(E.remaining().includes(n), 'bola não voltou ao pool');
+    E.newGame();
+    return true;
+  });
+
+  test('histórico mantém ordem cronológica crescente', () => {
+    const E = window.BingoEngine;
+    E.newGame();
+    [5, 40, 12, 73].forEach((n, i) => {
+      E.state.history.push({ num: n, letter: B.letterFor(n), at: Date.now() + i, order: i + 1 });
+    });
+    const orders = E.state.history.map((h) => h.order);
+    assert(orders.join() === '1,2,3,4', 'ordem inválida: ' + orders.join());
+    assert(E.state.history.map((h) => h.num).join() === '5,40,12,73');
+    E.newGame();
+    return true;
+  });
+
+  /* =========================================================
+     3. CARTELAS
+     ========================================================= */
+  group('Cartelas · geração, validação e importação');
+
+  test('cartela gerada respeita faixas e tem 24 números + livre', () => {
+    for (let i = 0; i < 50; i++) {
+      const grid = window.CardManager.generateGrid();
+      assert(grid.length === 25, 'tamanho');
+      assert(grid[12] === 0, 'centro não é livre');
+      const nums = grid.filter((v, j) => j !== 12);
+      assert(new Set(nums).size === 24, 'números repetidos');
+      // verifica cada posição no seu índice original (coluna = idx % 5)
+      grid.forEach((v, idx) => {
+        if (idx === 12) return;
+        const col = idx % 5;
+        const L = B.LETTERS[col];
+        const [min, max] = B.RANGES[L];
+        assert(v >= min && v <= max, `número ${v} no índice ${idx} fora da coluna ${L} (${min}-${max})`);
+      });
+    }
+    return true;
+  });
+
+  test('validação rejeita número fora de faixa, repetido e tamanho errado', () => {
+    const valid = window.CardManager.generateGrid();
+    assert(window.CardManager.validateGrid(valid).ok, 'cartela válida rejeitada');
+
+    const outOfRange = valid.slice();
+    outOfRange[0] = 30; // coluna B só vai até 15
+    assert(!window.CardManager.validateGrid(outOfRange).ok, 'aceitou número fora de faixa');
+
+    const dup = valid.slice();
+    dup[0] = dup[5];
+    assert(!window.CardManager.validateGrid(dup).ok, 'aceitou número duplicado');
+
+    assert(!window.CardManager.validateGrid([1, 2, 3]).ok, 'aceitou grid incompleto');
+    return true;
+  });
+
+  test('geração em lote cria cartelas distintas', () => {
+    window.Players.load();
+    window.CardManager.load();
+    // participante de teste isolado
+    const pl = window.Players.add({ name: '__teste_lote_' + Date.now() });
+    assert(pl.ok, pl.error);
+    const r = window.CardManager.generate(pl.player.id, 8, 'T');
+    assert(r.ok && r.added === 8, 'lote incompleto: ' + JSON.stringify(r));
+    const sigs = new Set(r.cards.map((c) => c.grid.filter((v, i) => i !== 12).slice().sort((a, b) => a - b).join(',')));
+    assert(sigs.size === 8, 'cartelas repetidas no lote');
+    window.CardManager.removeByPlayer(pl.player.id);
+    window.Players.remove(pl.player.id);
+    return { ok: true, note: '8 cartelas únicas geradas e removidas' };
+  });
+
+  test('importação CSV de cartelas reconhece cabeçalho e monta grid', () => {
+    const csv = [
+      'cartela;participante;numeros',
+      'Z901;__csv_ana;1 16 31 46 61 2 17 32 47 62 3 18 LIVRE 48 63 4 19 34 49 64 5 20 35 50 65'
+    ].join('\n');
+    const r = window.CardManager.importCsv(csv);
+    assert(r.ok && r.added === 1, 'importação falhou: ' + JSON.stringify(r));
+    const card = window.CardManager.all().find((c) => c.code === 'Z901');
+    assert(card, 'cartela não criada');
+    assert(window.CardManager.validateGrid(card.grid).ok, 'grid importado inválido');
+    window.CardManager.remove(card.id);
+    const pl = window.Players.all().find((p) => p.name === '__csv_ana');
+    if (pl) window.Players.remove(pl.id);
+    return true;
+  });
+
+  test('importação CSV rejeita cartela com números repetidos', () => {
+    const csv = [
+      'cartela;participante;numeros',
+      'Z902;__csv_bad;1 1 31 46 61 2 17 32 47 62 3 18 LIVRE 48 63 4 19 34 49 64 5 20 35 50 65'
+    ].join('\n');
+    const r = window.CardManager.importCsv(csv);
+    assert(r.ok && r.added === 0 && r.skipped === 1, 'aceitou cartela inválida');
+    const pl = window.Players.all().find((p) => p.name === '__csv_bad');
+    if (pl) window.Players.remove(pl.id);
+    return true;
+  });
+
+  test('progresso da cartela calcula faltantes corretamente', () => {
+    const grid = window.CardManager.generateGrid();
+    const card = { id: 'x', code: 'X1', grid };
+    const nums = grid.filter((v, i) => i !== 12);
+    const drawn = new Set(nums.slice(0, 22));
+    const p = window.CardManager.progress(card, drawn);
+    assert(p.total === 24 && p.hit === 22 && p.missing === 2, JSON.stringify(p));
+    assert(p.complete === false);
+    const all = new Set(nums);
+    const p2 = window.CardManager.progress(card, all);
+    assert(p2.complete === true && p2.missing === 0);
+    return true;
+  });
+
+  /* =========================================================
+     4. PARTICIPANTES
+     ========================================================= */
+  group('Participantes · cadastro, busca e CSV');
+
+  test('cadastro, duplicidade, edição e exclusão', () => {
+    window.Players.load();
+    const name = '__p_teste_' + Date.now();
+    const a = window.Players.add({ name, phone: '11999998888' });
+    assert(a.ok, a.error);
+    assert(a.player.code.length >= 3, 'código curto');
+
+    const dup = window.Players.add({ name });
+    assert(!dup.ok, 'aceitou nome duplicado');
+
+    const empty = window.Players.add({ name: '   ' });
+    assert(!empty.ok, 'aceitou nome vazio');
+
+    const up = window.Players.update(a.player.id, { name: name + '_x' });
+    assert(up.ok && up.player.name === name + '_x', 'edição falhou');
+
+    const found = window.Players.search('_x');
+    assert(found.some((p) => p.id === a.player.id), 'busca não encontrou');
+
+    const del = window.Players.remove(a.player.id);
+    assert(del.ok, 'exclusão falhou');
+    assert(!window.Players.byId(a.player.id), 'participante ainda existe');
+    return true;
+  });
+
+  test('importação CSV de participantes com cabeçalho', () => {
+    const csv = 'codigo;nome;telefone\nP901;__imp_maria;11988887777\nP902;__imp_joao;';
+    const r = window.Players.importCsv(csv);
+    assert(r.ok && r.added === 2, JSON.stringify(r));
+    const maria = window.Players.all().find((p) => p.name === '__imp_maria');
+    assert(maria && maria.phone === '11988887777', 'telefone não importado');
+    window.Players.all().filter((p) => p.name.startsWith('__imp_')).forEach((p) => window.Players.remove(p.id));
+    return true;
+  });
+
+  /* =========================================================
+     5. MONITORAMENTO, ALERTAS E VITÓRIA
+     ========================================================= */
+  group('Monitoramento · alertas, vencedores e múltiplos ganhadores');
+
+  function setupCardScenario() {
+    // monta cenário controlado: 1 participante, 1 cartela conhecida
+    window.Players.load();
+    window.CardManager.load();
+    const E = window.BingoEngine;
+    E.newGame();
+
+    const pl = window.Players.add({ name: '__auto_' + Date.now() });
+    const grid = new Array(25).fill(0);
+    // preenche cada coluna em sequência: B5, I20, N35, G50, O65 ...
+    B.LETTERS.forEach((L, col) => {
+      const [min] = B.RANGES[L];
+      for (let r = 0; r < 5; r++) grid[r * 5 + col] = min + r;
+    });
+    grid[12] = 0;
+    const added = window.CardManager.addManual(pl.player.id, grid, 'A');
+    if (!added.ok) throw new Error('cenário: ' + added.error);
+    return { player: pl.player, card: added.card, E };
+  }
+
+  function teardown(sc) {
+    if (sc.card) window.CardManager.remove(sc.card.id);
+    if (sc.player) window.Players.remove(sc.player.id);
+    sc.E.newGame();
+  }
+
+  test('alerta nível 3 (3 faltando), 2 (atenção) e 1 (iminente)', () => {
+    const sc = setupCardScenario();
+    const { E, card } = sc;
+    const nums = card.grid.filter((v, i) => i !== 12);
+
+    const push = (arr) => arr.forEach((n, i) => {
+      E.state.history.push({ num: n, letter: B.letterFor(n), at: Date.now(), order: E.state.history.length + 1 });
+    });
+
+    // 21 sorteados → faltam 3
+    push(nums.slice(0, 21));
+    let a = E.analyze();
+    assert(a.counts.lvl3 === 1, 'nível 3 não detectado: ' + JSON.stringify(a.counts));
+    assert(a.alerts[0].level === 3);
+
+    // 22 → faltam 2
+    push(nums.slice(21, 22));
+    a = E.analyze();
+    assert(a.counts.lvl2 === 1, 'nível 2 não detectado: ' + JSON.stringify(a.counts));
+    assert(window.AlertManager.banner(a).level === 2, 'banner errado para nível 2');
+
+    // 23 → falta 1
+    push(nums.slice(22, 23));
+    a = E.analyze();
+    assert(a.counts.lvl1 === 1, 'nível 1 não detectado: ' + JSON.stringify(a.counts));
+    const banner = window.AlertManager.banner(a);
+    assert(banner.level === 1 && /1 NÚMERO/.test(banner.text), 'banner nível 1 errado: ' + JSON.stringify(banner));
+
+    teardown(sc);
+    return { ok: true, note: '3 → 2 → 1 faltando, banner correto' };
+  });
+
+  test('detecção automática de vitória com 24 números', () => {
+    const sc = setupCardScenario();
+    const { E, card, player } = sc;
+    const nums = card.grid.filter((v, i) => i !== 12);
+    nums.forEach((n) => {
+      E.state.history.push({ num: n, letter: B.letterFor(n), at: Date.now(), order: E.state.history.length + 1 });
+    });
+    const a = E.analyze();
+    assert(a.winners.length === 1, 'não detectou vencedor: ' + JSON.stringify(a.counts));
+    assert(a.winners[0].playerName === player.name, 'nome errado do vencedor');
+    assert(a.counts.won === 1);
+    assert(window.WinnerDetector.detect(window.CardManager.all(), E.drawnSet(), window.Players.all()).length >= 1);
+    teardown(sc);
+    return true;
+  });
+
+  test('vitória NÃO é detectada com 23 números', () => {
+    const sc = setupCardScenario();
+    const { E, card } = sc;
+    const nums = card.grid.filter((v, i) => i !== 12);
+    nums.slice(0, 23).forEach((n) => {
+      E.state.history.push({ num: n, letter: B.letterFor(n), at: Date.now(), order: E.state.history.length + 1 });
+    });
+    const a = E.analyze();
+    assert(a.winners.length === 0, 'falso positivo de vitória');
+    assert(a.counts.lvl1 === 1, 'deveria estar a 1 número');
+    teardown(sc);
+    return true;
+  });
+
+  test('múltiplos ganhadores na mesma bola são todos identificados', () => {
+    const E = window.BingoEngine;
+    E.newGame();
+    const plA = window.Players.add({ name: '__ga_' + Date.now() });
+    const plB = window.Players.add({ name: '__gb_' + Date.now() });
+
+    const build = (offset) => {
+      const grid = new Array(25).fill(0);
+      B.LETTERS.forEach((L, col) => {
+        const [min] = B.RANGES[L];
+        for (let r = 0; r < 5; r++) grid[r * 5 + col] = min + r + offset;
+      });
+      grid[12] = 0;
+      return grid;
+    };
+
+    const c1 = window.CardManager.addManual(plA.player.id, build(0), 'G');
+    const c2 = window.CardManager.addManual(plB.player.id, build(1), 'G');
+    assert(c1.ok && c2.ok, 'cartelas não criadas');
+
+    const allNums = new Set([
+      ...c1.card.grid.filter((v, i) => i !== 12),
+      ...c2.card.grid.filter((v, i) => i !== 12)
+    ]);
+    // a bola final deve completar AS DUAS cartelas: escolhe um número
+    // presente nas duas e sorteia todo o resto do conjunto.
+    const numsA = c1.card.grid.filter((v, i) => i !== 12);
+    const numsB = c2.card.grid.filter((v, i) => i !== 12);
+    const common = numsA.filter((n) => numsB.includes(n));
+    assert(common.length > 0, 'cartelas de teste sem número em comum');
+    const last = common[0];
+
+    Array.from(allNums).filter((n) => n !== last).forEach((n) => {
+      E.state.history.push({ num: n, letter: B.letterFor(n), at: Date.now(), order: E.state.history.length + 1 });
+    });
+    assert(E.analyze().winners.length === 0, 'vitória prematura');
+
+    // a bola final completa as duas cartelas
+    E.state.history.push({ num: last, letter: B.letterFor(last), at: Date.now(), order: E.state.history.length + 1 });
+    const a = E.analyze();
+    assert(a.winners.length === 2, 'esperava 2 ganhadores, obteve ' + a.winners.length);
+
+    window.CardManager.remove(c1.card.id);
+    window.CardManager.remove(c2.card.id);
+    window.Players.remove(plA.player.id);
+    window.Players.remove(plB.player.id);
+    E.newGame();
+    return { ok: true, note: '2 cartelas completadas na mesma bola' };
+  });
+
+  /* =========================================================
+     6. PEDRA MAIOR
+     ========================================================= */
+  group('Pedra maior · desempate');
+
+  test('sorteia apenas entre candidatos e não altera o sorteio principal', () => {
+    const E = window.BingoEngine;
+    const before = E.state.history.slice();
+    const BS = window.BigStoneManager;
+    BS.initFromWinners([
+      { cardId: 'a', playerName: 'Ana', code: 'C001' },
+      { cardId: 'b', playerName: 'Bruno', code: 'C002' },
+      { cardId: 'c', playerName: 'Carla', code: 'C003' }
+    ]);
+    assert(BS.candidates.length === 3);
+    const r = BS.draw();
+    assert(r.ok, 'sorteio falhou');
+    assert(['Ana', 'Bruno', 'Carla'].includes(r.winner.name), 'vencedor fora da lista');
+    assert(E.state.history.length === before.length, 'pedra maior alterou o sorteio principal');
+    BS.reset();
+    return { ok: true, note: 'vencedor: ' + r.winner.name };
+  });
+
+  test('todos os candidatos podem vencer (distribuição)', () => {
+    const BS = window.BigStoneManager;
+    BS.initFromWinners([
+      { cardId: 'a', playerName: 'A', code: '1' },
+      { cardId: 'b', playerName: 'B', code: '2' }
+    ]);
+    const seen = new Set();
+    for (let i = 0; i < 400; i++) {
+      const r = BS.draw();
+      seen.add(r.winner.name);
+    }
+    assert(seen.size === 2, 'nem todos os candidatos foram sorteados');
+    BS.reset();
+    return true;
+  });
+
+  test('impede duplicidade e permite remoção de candidato', () => {
+    const BS = window.BigStoneManager;
+    BS.initFromWinners([{ cardId: 'a', playerName: 'Ana', code: 'C1' }]);
+    const dup = BS.addCandidate('Ana');
+    assert(!dup.ok, 'aceitou candidato duplicado');
+    const add = BS.addCandidate('Zeca');
+    assert(add.ok, 'não adicionou candidato');
+    assert(BS.candidates.length === 2);
+    const rm = BS.removeCandidate(add.candidate.id);
+    assert(rm.ok && BS.candidates.length === 1, 'não removeu');
+    BS.reset();
+    return true;
+  });
+
+  test('anúncio falado da pedra maior contém o vencedor', () => {
+    const BS = window.BigStoneManager;
+    BS.initFromWinners([
+      { cardId: 'a', playerName: 'Maria Silva', code: 'C001' },
+      { cardId: 'b', playerName: 'João Santos', code: 'C002' }
+    ]);
+    BS.draw();
+    const text = BS.announceText();
+    assert(/pedra maior/i.test(text), 'sem menção à pedra maior');
+    assert(text.includes(BS.winner.name), 'sem o nome do vencedor');
+    BS.reset();
+    return { ok: true, note: text.slice(0, 64) + '…' };
+  });
+
+  /* =========================================================
+     7. PERSISTÊNCIA
+     ========================================================= */
+  group('Persistência · backup e recuperação');
+
+  test('estado da partida sobrevive a save/load', () => {
+    const E = window.BingoEngine;
+    E.newGame();
+    E.state.status = 'paused';
+    E.state.startedAt = Date.now();
+    E.state.history.push({ num: 9, letter: 'B', at: Date.now(), order: 1 });
+    E.state.lastBall = E.state.history[0];
+    E.persistNow();
+
+    const saved = window.Persistence.loadGame();
+    assert(saved && saved.history.length === 1, 'estado não persistido');
+    assert(saved.lastBall.num === 9, 'última bola não persistida');
+
+    // simula recarregar a página
+    const E2 = window.BingoEngine;
+    const had = E2.load();
+    assert(had && E2.state.history.length === 1 && E2.state.lastBall.num === 9, 'recuperação falhou');
+    E.newGame();
+    return true;
+  });
+
+  test('exportar/importar backup restaura participantes e cartelas', () => {
+    window.Players.load();
+    window.CardManager.load();
+    const pl = window.Players.add({ name: '__bk_' + Date.now() });
+    window.CardManager.generate(pl.player.id, 2, 'B');
+    const totalPlayers = window.Players.count();
+    const totalCards = window.CardManager.count();
+
+    const dump = JSON.parse(JSON.stringify(window.Persistence.exportAll()));
+    assert(dump.players && dump.cards, 'backup sem dados');
+
+    const res = window.Persistence.importAll(dump);
+    assert(res.ok, res.error);
+    window.Players.load();
+    window.CardManager.load();
+    assert(window.Players.count() === totalPlayers, 'contagem de participantes divergente');
+    assert(window.CardManager.count() === totalCards, 'contagem de cartelas divergente');
+
+    window.CardManager.removeByPlayer(pl.player.id);
+    window.Players.remove(pl.player.id);
+    return { ok: true, note: `${totalPlayers} participantes · ${totalCards} cartelas` };
+  });
+
+  test('importar JSON inválido é rejeitado sem destruir dados', () => {
+    const before = window.Players.count();
+    const res = window.Persistence.importAll({ foo: 'bar' });
+    assert(!res.ok, 'aceitou arquivo inválido');
+    window.Players.load();
+    assert(window.Players.count() === before, 'dados alterados');
+    return true;
+  });
+
+  test('última partida finalizada é guardada separadamente', () => {
+    const E = window.BingoEngine;
+    E.newGame();
+    E.state.status = 'running';
+    E.state.startedAt = Date.now();
+    E.state.history.push({ num: 3, letter: 'B', at: Date.now(), order: 1 });
+    E.finish();
+    const last = window.Persistence.loadLastGame();
+    assert(last && last.history.length === 1, 'última partida não salva');
+    assert(last.status === 'finished', 'status errado: ' + last.status);
+    E.newGame();
+    return true;
+  });
+
+  test('limpar cadastro preserva a partida e os backups', () => {
+    const E = window.BingoEngine;
+    E.newGame();
+    E.state.history.push({ num: 11, letter: 'B', at: Date.now(), order: 1 });
+    E.persistNow();
+    window.Persistence.clearRegistry();
+    window.Players.load();
+    window.CardManager.load();
+    assert(window.Players.count() === 0 && window.CardManager.count() === 0, 'cadastro não limpo');
+    const g = window.Persistence.loadGame();
+    assert(g && g.history.length === 1, 'partida foi destruída');
+    E.newGame();
+    return true;
+  });
+
+  /* =========================================================
+     8. CONFIGURAÇÕES E LOCUTOR
+     ========================================================= */
+  group('Configurações e locutor');
+
+  test('normalização de configurações aplica limites', () => {
+    const S = window.Settings;
+    const original = Object.assign({}, S.state);
+    S.set({ rate: 99, pitch: -5, volume: 4, speechDelay: 99999, interval: 10 });
+    assert(S.state.rate <= 1.4 && S.state.rate >= 0.6, 'rate fora do limite: ' + S.state.rate);
+    assert(S.state.pitch <= 1.6 && S.state.pitch >= 0.6, 'pitch fora do limite');
+    assert(S.state.volume === 1, 'volume fora do limite');
+    assert(S.state.speechDelay <= 2500, 'speechDelay fora do limite');
+    assert(S.state.interval >= 3000, 'intervalo mínimo violado');
+    S.state = original;
+    S.save();
+    return true;
+  });
+
+  test('intervalo personalizado converte segundos em ms', () => {
+    const S = window.Settings;
+    const original = Object.assign({}, S.state);
+    S.set({ interval: 'custom', customInterval: 12 });
+    assert(S.intervalMs() === 12000, 'conversão errada: ' + S.intervalMs());
+    S.state = original;
+    S.save();
+    return true;
+  });
+
+  test('texto de vitória usa o template com nome e cartela', () => {
+    const V = window.Voice;
+    const S = window.Settings;
+    const original = Object.assign({}, S.state);
+    S.set({ victoryTemplate: 'Bingo! Parabéns, {nome}, cartela {cartela}!' });
+    const one = V.buildVictoryText([{ playerName: 'Maria Silva', code: 'C001', codeSpoken: 'zero zero um' }]);
+    assert(one === 'Bingo! Parabéns, Maria Silva, cartela zero zero um!', 'template: ' + one);
+    const many = V.buildVictoryText([
+      { playerName: 'Ana', code: 'C1', codeSpoken: 'um' },
+      { playerName: 'Bia', code: 'C2', codeSpoken: 'dois' }
+    ]);
+    assert(/2 ganhadores/.test(many) || /dois ganhadores/.test(many), 'plural de ganhadores: ' + many);
+    S.state = original;
+    S.save();
+    return true;
+  });
+
+  test('API de voz expõe estado e fallback sem quebrar', () => {
+    const st = window.Voice.getState();
+    assert(typeof st.supported === 'boolean', 'estado sem flag supported');
+    assert(typeof st.speaking === 'boolean');
+    assert(typeof window.Voice.say === 'function');
+    assert(typeof window.Voice.stop === 'function');
+    assert(typeof window.Voice.repeatLast === 'function');
+    window.Voice.stop();
+    return {
+      ok: true,
+      note: st.supported
+        ? `${st.voiceCount} vozes · ${st.ptCount} pt-BR · usando: ${st.voiceName || '—'}`
+        : 'sem suporte (fallback visual ativo)'
+    };
+  });
+
+  test('anúncio de bola produz o texto esperado e registra última chamada', () => {
+    const V = window.Voice;
+    const num = 7;
+    const expected = B.speechFor(num);
+    V.announceBall(num);
+    const last = V.getLastSpoken();
+    assert(last && last.num === num && last.text === expected, 'última chamada: ' + JSON.stringify(last));
+    V.stop();
+    return { ok: true, note: expected };
+  });
+
+  /* =========================================================
+     RENDER
+     ========================================================= */
+  let totalOk = 0, totalFail = 0;
+  const out = document.getElementById('results');
+
+  groups.forEach((g) => {
+    const sec = document.createElement('div');
+    sec.className = 'group';
+    const fails = g.tests.filter((t) => !t.ok).length;
+    totalOk += g.tests.length - fails;
+    totalFail += fails;
+
+    sec.innerHTML = `<h2>${g.name} — ${g.tests.length - fails}/${g.tests.length}</h2>
+      <table><tbody>${g.tests.map((t) => `
+        <tr class="${t.ok ? '' : 'failrow'}">
+          <td class="st ${t.ok ? 'ok' : 'fail'}">${t.ok ? 'PASS' : 'FAIL'}</td>
+          <td>${t.ok ? '' : '<strong>'}${t.name}${t.ok ? '' : '</strong>'}</td>
+          <td class="note">${(t.note || '').replace(/</g, '&lt;')}</td>
+        </tr>`).join('')}</tbody></table>`;
+    out.appendChild(sec);
+  });
+
+  const summary = document.getElementById('summary');
+  summary.innerHTML = `
+    <span class="pill ${totalFail ? 'fail' : 'ok'}">${totalOk} passaram</span>
+    <span class="pill ${totalFail ? 'fail' : 'ok'}">${totalFail} falharam</span>
+    <span class="pill">${groups.reduce((n, g) => n + g.tests.length, 0)} testes · ${groups.length} grupos</span>`;
+  summary.dataset.fail = String(totalFail);
+  summary.dataset.pass = String(totalOk);
+
+  // limpa o cenário de teste da partida
+  try { window.BingoEngine.newGame(); } catch (e) { /* noop */ }
+})();
+</script>
+</body>
+</html>

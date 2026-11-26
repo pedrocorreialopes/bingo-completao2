@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#060d24">
+<title>Bingo 75 Pro — Chamador Inteligente com Locutor Virtual</title>
+<meta name="description" content="Aplicativo profissional de bingo 75 bolas com locutor virtual em português do Brasil, cartelas monitoradas, alertas de proximidade, detecção automática de bingo, pedra maior e modo telão.">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ============================= OPERADOR ============================= -->
+<div id="app" class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-ball"><span>75</span></div>
+      <div class="brand-text">
+        <h1>BINGO <span>75</span> PRO</h1>
+        <p>Chamador inteligente · Locutor virtual</p>
+      </div>
+    </div>
+
+    <div class="topbar-center">
+      <div class="status-pill" id="statusPill" data-status="idle">AGUARDANDO INÍCIO</div>
+      <div class="chip" title="Bolas sorteadas">
+        <span class="chip-ico">⚪</span><strong id="ballsCount">0</strong><span class="muted">/ 75</span>
+      </div>
+      <div class="chip" title="Tempo de partida">
+        <span class="chip-ico">⏱</span><strong id="gameTimer">00:00</strong>
+      </div>
+      <div class="chip chip-voice" id="voiceChip" title="Status do locutor">
+        <span class="chip-ico">🔊</span><span id="voiceChipText">Locutor ativo</span>
+      </div>
+    </div>
+
+    <nav class="topbar-actions" aria-label="Ações do sistema">
+      <button type="button" class="btn btn-ghost" id="btnPlayers" title="Cadastro de participantes">
+        <span class="ico">👥</span> Participantes <b class="badge" id="badgePlayers">0</b>
+      </button>
+      <button type="button" class="btn btn-ghost" id="btnCards" title="Cadastro e importação de cartelas">
+        <span class="ico">🎫</span> Cartelas <b class="badge" id="badgeCards">0</b>
+      </button>
+      <button type="button" class="btn btn-ghost icon-btn" id="btnSettings" title="Configurações do locutor e do jogo" aria-label="Configurações">
+        <span class="ico">⚙️</span>
+      </button>
+      <button type="button" class="btn btn-ghost icon-btn" id="btnBackup" title="Backup e recuperação" aria-label="Backup">
+        <span class="ico">💾</span>
+      </button>
+      <button type="button" class="btn btn-gold" id="btnTelao" title="Abrir modo telão (tecla F)">
+        <span class="ico">📺</span> Modo Telão
+      </button>
+    </nav>
+  </header>
+
+  <main class="layout">
+
+    <!-- ---------- Coluna esquerda: palco da bola + controles ---------- -->
+    <section class="panel panel-stage" aria-labelledby="stageTitle">
+      <h2 class="panel-title" id="stageTitle">Sorteio</h2>
+
+      <div class="stage" id="stage">
+        <div class="stage-glow" aria-hidden="true"></div>
+        <div class="ball-machine" id="ballMachine" aria-hidden="true">
+          <div class="machine-ring"></div>
+          <div class="machine-ring r2"></div>
+          <div class="machine-ring r3"></div>
+        </div>
+
+        <div class="drawn-ball" id="drawnBall" data-letter="" aria-live="polite">
+          <div class="ball-shine" aria-hidden="true"></div>
+          <div class="ball-letter" id="ballLetter">—</div>
+          <div class="ball-number" id="ballNumber">00</div>
+          <div class="ball-label" id="ballLabel">PRONTO</div>
+        </div>
+
+        <div class="speech" id="speechBox" hidden>
+          <span class="speech-ico">🔊</span>
+          <span class="speech-text" id="speechText"></span>
+        </div>
+
+        <div class="countdown" id="countdownBox" hidden>
+          <div class="countdown-bar"><i id="countdownFill"></i></div>
+          <div class="countdown-label">Próxima bola em <strong id="countdownValue">0</strong>s</div>
+        </div>
+
+        <p class="stage-hint" id="stageHint">Cadastre participantes e cartelas, depois inicie o jogo.</p>
+      </div>
+
+      <div class="controls" id="controls">
+        <button type="button" class="btn btn-primary btn-xl span2" id="btnStart">
+          <span class="ico">▶</span> INICIAR JOGO
+        </button>
+        <button type="button" class="btn btn-warn btn-xl span2" id="btnPause" disabled>
+          <span class="ico">⏸</span> PAUSAR
+        </button>
+        <button type="button" class="btn btn-draw btn-xl span2" id="btnDraw" disabled>
+          <span class="ico">🎲</span> SORTEAR PRÓXIMA BOLA
+        </button>
+        <button type="button" class="btn btn-ghost btn-xl" id="btnRepeat" disabled>
+          <span class="ico">🔁</span> REPETIR CHAMADA
+        </button>
+        <button type="button" class="btn btn-ghost btn-xl" id="btnMute" aria-pressed="false">
+          <span class="ico">🔇</span> SILENCIAR
+        </button>
+        <button type="button" class="btn btn-ghost" id="btnUndo" disabled>
+          <span class="ico">↩</span> Desfazer último
+        </button>
+        <button type="button" class="btn btn-ghost" id="btnFinish" disabled>
+          <span class="ico">🏁</span> Finalizar jogo
+        </button>
+        <button type="button" class="btn btn-ghost" id="btnNewGame">
+          <span class="ico">✨</span> Novo jogo
+        </button>
+        <button type="button" class="btn btn-ghost" id="btnRecover">
+          <span class="ico">🔄</span> Recuperar último jogo
+        </button>
+      </div>
+    </section>
+
+    <!-- ---------- Coluna central: tabuleiro ---------- -->
+    <section class="panel panel-board" aria-labelledby="boardTitle">
+      <div class="panel-head">
+        <h2 class="panel-title" id="boardTitle">Tabuleiro Bingo 75</h2>
+        <div class="board-meta">
+          <span class="tag" id="boardProgress">0 de 75 sorteados</span>
+        </div>
+      </div>
+
+      <div class="board" id="board" role="grid" aria-label="Tabuleiro de 75 números"></div>
+
+      <div class="stats-strip" id="statsStrip">
+        <div class="stat"><span class="stat-label">Sorteadas</span><strong id="stDrawn">0</strong></div>
+        <div class="stat"><span class="stat-label">Restantes</span><strong id="stLeft">75</strong></div>
+        <div class="stat"><span class="stat-label">Jogo</span><strong id="stPct">0%</strong></div>
+        <div class="stat"><span class="stat-label">Participantes</span><strong id="stPlayers">0</strong></div>
+        <div class="stat"><span class="stat-label">Cartelas</span><strong id="stCards">0</strong></div>
+        <div class="stat"><span class="stat-label">A 3</span><strong id="st3">0</strong></div>
+        <div class="stat"><span class="stat-label">A 2</span><strong id="st2">0</strong></div>
+        <div class="stat"><span class="stat-label">A 1</span><strong id="st1">0</strong></div>
+        <div class="stat"><span class="stat-label">Vencedoras</span><strong id="stWin">0</strong></div>
+      </div>
+    </section>
+
+    <!-- ---------- Coluna direita: alertas, histórico, últimos ---------- -->
+    <aside class="panel panel-side" aria-labelledby="sideTitle">
+      <h2 class="panel-title visually-hidden" id="sideTitle">Monitoramento</h2>
+
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab is-active" role="tab" aria-selected="true" data-tab="alerts">Alertas</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="history">Histórico</button>
+        <button type="button" class="tab" role="tab" aria-selected="false" data-tab="ranking">Ranking</button>
+      </div>
+
+      <div class="tab-panel is-active" data-panel="alerts" role="tabpanel">
+        <div class="alert-banner" id="alertBanner" hidden>
+          <span class="alert-ico">⚠️</span>
+          <span id="alertBannerText">FALTA APENAS 1 NÚMERO!</span>
+        </div>
+        <div class="side-list" id="alertsList">
+          <p class="empty">Nenhum alerta por enquanto.<br>Sorteie bolas para monitorar as cartelas.</p>
+        </div>
+      </div>
+
+      <div class="tab-panel" data-panel="history" role="tabpanel">
+        <div class="side-sub">
+          <span id="historyCount">0 bolas</span>
+          <button type="button" class="link-btn" id="btnHistoryFull">Ver todas</button>
+        </div>
+        <ol class="history-list" id="historyList"></ol>
+      </div>
+
+      <div class="tab-panel" data-panel="ranking" role="tabpanel">
+        <div class="side-sub"><span>Mais próximos do bingo</span></div>
+        <div class="side-list" id="rankingList">
+          <p class="empty">Sem cartelas em jogo.</p>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="app-footer">
+    <span>Bingo 75 Pro · dados salvos automaticamente neste navegador</span>
+    <span class="footer-keys">Atalhos: <kbd>Espaço</kbd> sortear · <kbd>P</kbd> pausar · <kbd>F</kbd> telão · <kbd>R</kbd> repetir</span>
+  </footer>
+</div>
+
+<!-- ============================= TELÃO ============================= -->
+<div class="overlay telao" id="screenTelao" hidden aria-hidden="true">
+  <div class="telao-bg" aria-hidden="true"></div>
+  <header class="telao-top">
+    <div class="telao-brand">BINGO <span>75</span> PRO</div>
+    <div class="telao-stats">
+      <span class="telao-chip"><b id="tDrawn">0</b>/75 bolas</span>
+      <span class="telao-chip" id="tClock">00:00</span>
+      <span class="telao-chip" id="tStatus">AGUARDANDO</span>
+    </div>
+    <button type="button" class="btn btn-ghost telao-exit" id="btnExitTelao" title="Sair do modo telão">✕ Sair</button>
+  </header>
+
+  <main class="telao-main">
+    <section class="telao-left">
+      <div class="telao-ball-wrap">
+        <div class="drawn-ball telao-ball" id="tBall" data-letter="">
+          <div class="ball-shine" aria-hidden="true"></div>
+          <div class="ball-letter" id="tLetter">—</div>
+          <div class="ball-number" id="tNumber">00</div>
+        </div>
+      </div>
+      <div class="telao-speech" id="tSpeech" hidden>🔊 <span id="tSpeechText"></span></div>
+      <div class="telao-countdown" id="tCountdown" hidden>
+        <div class="countdown-bar big"><i id="tCountdownFill"></i></div>
+        <div class="countdown-label">Próxima bola em <strong id="tCountdownValue">0</strong>s</div>
+      </div>
+      <ul class="telao-recent" id="tRecent" aria-label="Últimas bolas"></ul>
+    </section>
+
+    <section class="telao-right">
+      <div class="telao-alerts" id="tAlerts"></div>
+      <div class="board board-telao" id="tBoard" role="grid" aria-label="Tabuleiro"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ============================= VITÓRIA ============================= -->
+<div class="overlay victory" id="screenVictory" hidden aria-hidden="true">
+  <canvas class="confetti-canvas" id="confettiCanvas" aria-hidden="true"></canvas>
+  <div class="victory-inner">
+    <p class="victory-kicker">Temos um ganhador!</p>
+    <h2 class="victory-title">BINGO!</h2>
+    <p class="victory-sub" id="victorySub">Cartela completa</p>
+
+    <div class="victory-grid" id="victoryWinners"></div>
+
+    <div class="victory-foot" id="victoryFoot">
+      <span class="victory-ball" id="victoryBall">—</span>
+      <span id="victoryMeta">—</span>
+    </div>
+
+    <div class="victory-actions">
+      <button type="button" class="btn btn-gold btn-lg" id="btnVictoryStone" hidden>
+        <span class="ico">🎯</span> INICIAR PEDRA MAIOR
+      </button>
+      <button type="button" class="btn btn-primary btn-lg" id="btnVictoryClose">
+        <span class="ico">✔</span> Continuar
+      </button>
+      <button type="button" class="btn btn-ghost btn-lg" id="btnVictoryNew">
+        <span class="ico">✨</span> Novo jogo
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= PEDRA MAIOR ============================= -->
+<div class="overlay bigstone" id="screenBigStone" hidden aria-hidden="true">
+  <div class="bigstone-inner">
+    <h2 class="bigstone-title">PEDRA MAIOR</h2>
+    <p class="bigstone-sub" id="stoneSub">Desempate entre os ganhadores</p>
+
+    <div class="stone-grid" id="stoneGrid"></div>
+
+    <div class="stone-result" id="stoneResult" hidden>
+      <div class="stone-crown">🏆</div>
+      <p class="stone-winner" id="stoneWinner">—</p>
+      <p class="stone-line" id="stoneLine">venceu a pedra maior!</p>
+    </div>
+
+    <div class="stone-add">
+      <input type="text" id="stoneName" maxlength="60" placeholder="Adicionar nome participante (opcional)">
+      <button type="button" class="btn btn-ghost" id="btnStoneAdd">Adicionar</button>
+    </div>
+
+    <div class="bigstone-actions">
+      <button type="button" class="btn btn-gold btn-lg" id="btnStoneDraw"><span class="ico">🎲</span> SORTEAR VENCEDOR</button>
+      <button type="button" class="btn btn-primary btn-lg" id="btnStoneRepeat"><span class="ico">🔁</span> Repetir anúncio</button>
+      <button type="button" class="btn btn-ghost btn-lg" id="btnStoneClose">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= MODAIS ============================= -->
+<div class="modal-host" id="modalHost" hidden>
+  <div class="modal-backdrop" data-close="1"></div>
+
+  <!-- Participantes -->
+  <section class="modal modal-wide" id="modalPlayers" role="dialog" aria-modal="true" aria-labelledby="mpTitle" hidden>
+    <header class="modal-head">
+      <h3 id="mpTitle">Participantes</h3>
+      <button type="button" class="icon-x" data-close="1" aria-label="Fechar">✕</button>
+    </header>
+    <div class="modal-body">
+      <form class="form-row" id="playerForm">
+        <div class="field grow">
+          <label for="playerName">Nome do participante *</label>
+          <input type="text" id="playerName" required maxlength="60" placeholder="Ex.: Maria Silva" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="playerPhone">Telefone (opcional)</label>
+          <input type="tel" id="playerPhone" maxlength="24" placeholder="(00) 00000-0000" autocomplete="off">
+        </div>
+        <div class="field narrow">
+          <label for="playerCards">Qtd. cartelas</label>
+          <input type="number" id="playerCards" min="0" max="200" value="1" inputmode="numeric">
+        </div>
+        <button type="submit" class="btn btn-primary" id="btnPlayerSave">Cadastrar</button>
+        <button type="button" class="btn btn-ghost" id="btnPlayerCancel" hidden>Cancelar</button>
+      </form>
+
+      <div class="toolbar">
+        <input type="search" id="playerSearch" class="search" placeholder="Pesquisar participante…" autocomplete="off">
+        <button type="button" class="btn btn-ghost sm" id="btnPlayersExport">Exportar CSV</button>
+        <button type="button" class="btn btn-ghost sm" id="btnPlayersImport">Importar CSV</button>
+      </div>
+
+      <div class="table-scroll">
+        <table class="data-table" id="playersTable">
+          <thead>
+            <tr><th scope="col">#</th><th scope="col">Nome</th><th scope="col">Telefone</th><th scope="col">Cartelas</th><th scope="col" class="right">Ações</th></tr>
+          </thead>
+          <tbody id="playersTbody"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="playersEmpty">Nenhum participante cadastrado ainda.</p>
+    </div>
+  </section>
+
+  <!-- Cartelas -->
+  <section class="modal modal-wide" id="modalCards" role="dialog" aria-modal="true" aria-labelledby="mcTitle" hidden>
+    <header class="modal-head">
+      <h3 id="mcTitle">Cartelas</h3>
+      <button type="button" class="icon-x" data-close="1" aria-label="Fechar">✕</button>
+    </header>
+    <div class="modal-body">
+      <div class="card-gen">
+        <div class="field grow">
+          <label for="genPlayer">Participante *</label>
+          <select id="genPlayer"></select>
+        </div>
+        <div class="field narrow">
+          <label for="genQty">Quantidade</label>
+          <input type="number" id="genQty" min="1" max="100" value="1" inputmode="numeric">
+        </div>
+        <div class="field narrow">
+          <label for="genPrefix">Série</label>
+          <input type="text" id="genPrefix" maxlength="6" value="C" placeholder="C">
+        </div>
+        <button type="button" class="btn btn-primary" id="btnGenCards"><span class="ico">✨</span> Gerar cartelas</button>
+        <button type="button" class="btn btn-ghost" id="btnManualCard">Cartela manual</button>
+      </div>
+
+      <form class="card-manual" id="manualCardForm" hidden>
+        <p class="hint">Digite os 5 números de cada coluna (B 1–15 · I 16–30 · N 31–45 · G 46–60 · O 61–75). O centro é livre.</p>
+        <div class="manual-grid" id="manualGrid"></div>
+        <div class="manual-actions">
+          <div class="field grow">
+            <label for="manualPlayer">Participante</label>
+            <select id="manualPlayer"></select>
+          </div>
+          <button type="submit" class="btn btn-primary">Salvar cartela</button>
+          <button type="button" class="btn btn-ghost" id="btnManualCancel">Cancelar</button>
+        </div>
+        <p class="form-error" id="manualCardError" hidden></p>
+      </form>
+
+      <div class="toolbar">
+        <select id="cardFilterPlayer" class="search"><option value="">Todos os participantes</option></select>
+        <input type="search" id="cardSearch" class="search" placeholder="Buscar cartela…" autocomplete="off">
+        <button type="button" class="btn btn-ghost sm" id="btnPrintSelectedCards">Imprimir selecionadas</button>
+        <button type="button" class="btn btn-ghost sm" id="btnPrintAllCards">Imprimir todas</button>
+        <button type="button" class="btn btn-ghost sm" id="btnCardsExport">Exportar CSV</button>
+        <button type="button" class="btn btn-ghost sm" id="btnCardsImport">Importar CSV</button>
+        <button type="button" class="btn btn-ghost sm danger" id="btnCardsClear">Remover todas</button>
+      </div>
+
+      <div class="table-scroll">
+        <table class="data-table" id="cardsTable">
+          <thead>
+            <tr><th scope="col"><input type="checkbox" id="cardsSelectVisible" aria-label="Selecionar cartelas visíveis"></th><th scope="col">Cartela</th><th scope="col">Participante</th><th scope="col">Números</th><th scope="col">Progresso</th><th scope="col" class="right">Ações</th></tr>
+          </thead>
+          <tbody id="cardsTbody"></tbody>
+        </table>
+      </div>
+      <p class="empty" id="cardsEmpty">Nenhuma cartela cadastrada ainda.</p>
+    </div>
+  </section>
+
+  <!-- Configurações -->
+  <section class="modal modal-wide" id="modalSettings" role="dialog" aria-modal="true" aria-labelledby="msTitle" hidden>
+    <header class="modal-head">
+      <h3 id="msTitle">Configurações</h3>
+      <button type="button" class="icon-x" data-close="1" aria-label="Fechar">✕</button>
+    </header>
+    <div class="modal-body settings-body">
+      <fieldset class="fs">
+        <legend>Locutor virtual</legend>
+        <label class="switch-row">
+          <input type="checkbox" id="setVoiceOn" checked>
+          <span>Ativar locutor nas chamadas</span>
+        </label>
+        <div class="field">
+          <label for="setVoice">Voz (português do Brasil)</label>
+          <select id="setVoice"></select>
+          <p class="hint" id="voiceHint">Se nenhuma voz pt-BR estiver instalada, o sistema usa a melhor voz disponível e mostra o texto na tela.</p>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="setRate">Velocidade <output id="outRate">0,95</output></label>
+            <input type="range" id="setRate" min="0.6" max="1.4" step="0.05" value="0.95">
+          </div>
+          <div class="field">
+            <label for="setPitch">Tonalidade <output id="outPitch">1,00</output></label>
+            <input type="range" id="setPitch" min="0.6" max="1.6" step="0.05" value="1">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="setVolume">Volume da voz <output id="outVolume">100%</output></label>
+            <input type="range" id="setVolume" min="0" max="1" step="0.05" value="1">
+          </div>
+          <div class="field">
+            <label for="setSpeechDelay">Pausa antes da fala <output id="outSpeechDelay">700 ms</output></label>
+            <input type="range" id="setSpeechDelay" min="0" max="2500" step="50" value="700">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="setRepeatLetter">Repetir a letra</label>
+            <select id="setRepeatLetter">
+              <option value="0">Não (Bê, número sete)</option>
+              <option value="1">Sim (Bê, número sete… Bê)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="setAnnouncePrefix">Chamada extra antes da bola</label>
+            <select id="setAnnouncePrefix">
+              <option value="">Nenhuma</option>
+              <option value="Boa sorte!">Boa sorte!</option>
+              <option value="Atenção!">Atenção!</option>
+              <option value="Olha a bola!">Olha a bola!</option>
+            </select>
+          </div>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost" id="btnTestVoice"><span class="ico">🔊</span> Testar voz</button>
+          <button type="button" class="btn btn-ghost" id="btnTestBall">Testar uma bola</button>
+          <button type="button" class="btn btn-ghost" id="btnTestVictory">Testar anúncio de vitória</button>
+        </div>
+      </fieldset>
+
+      <fieldset class="fs">
+        <legend>Ritmo do sorteio</legend>
+        <div class="grid-2">
+          <div class="field">
+            <label for="setInterval">Intervalo entre bolas</label>
+            <select id="setInterval">
+              <option value="5000">5 segundos</option>
+              <option value="8000">8 segundos</option>
+              <option value="10000" selected>10 segundos</option>
+              <option value="15000">15 segundos</option>
+              <option value="20000">20 segundos</option>
+              <option value="30000">30 segundos</option>
+              <option value="custom">Tempo personalizado…</option>
+            </select>
+          </div>
+          <div class="field" id="customIntervalField" hidden>
+            <label for="setCustomInterval">Personalizado (segundos)</label>
+            <input type="number" id="setCustomInterval" min="3" max="300" value="12" inputmode="numeric">
+          </div>
+        </div>
+        <label class="switch-row">
+          <input type="checkbox" id="setIntervalAfterSpeech" checked>
+          <span>Intervalo após a narração (o tempo começa quando o locutor termina)</span>
+        </label>
+        <label class="switch-row">
+          <input type="checkbox" id="setAutoStart" checked>
+          <span>Sortear automaticamente ao iniciar o jogo</span>
+        </label>
+        <label class="switch-row">
+          <input type="checkbox" id="setPauseOnAlert" checked>
+          <span>Destacar alerta de bingo iminente no palco</span>
+        </label>
+      </fieldset>
+
+      <fieldset class="fs">
+        <legend>Efeitos sonoros</legend>
+        <label class="switch-row">
+          <input type="checkbox" id="setSfxOn" checked>
+          <span>Ativar efeitos sonoros</span>
+        </label>
+        <div class="field">
+          <label for="setSfxVolume">Volume dos efeitos <output id="outSfxVolume">45%</output></label>
+          <input type="range" id="setSfxVolume" min="0" max="1" step="0.05" value="0.45">
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost sm" data-sfx="start">Início</button>
+          <button type="button" class="btn btn-ghost sm" data-sfx="draw">Sorteio</button>
+          <button type="button" class="btn btn-ghost sm" data-sfx="reveal">Revelação</button>
+          <button type="button" class="btn btn-ghost sm" data-sfx="alert">Alerta</button>
+          <button type="button" class="btn btn-ghost sm" data-sfx="bingo">Bingo</button>
+          <button type="button" class="btn btn-ghost sm" data-sfx="pause">Pausa</button>
+          <button type="button" class="btn btn-ghost sm" data-sfx="stone">Pedra maior</button>
+        </div>
+      </fieldset>
+
+      <fieldset class="fs">
+        <legend>Anúncio de vitória</legend>
+        <div class="field">
+          <label for="setVictoryTemplate">Texto do locutor</label>
+          <input type="text" id="setVictoryTemplate" maxlength="180" value="Temos bingo! Parabéns, {nome}, cartela número {cartela}!">
+          <p class="hint">Use <code>{nome}</code> e <code>{cartela}</code>. Para vários ganhadores, cada um é anunciado.</p>
+        </div>
+        <label class="switch-row">
+          <input type="checkbox" id="setStoneAuto" checked>
+          <span>Oferecer pedra maior automaticamente em caso de empate</span>
+        </label>
+        <label class="switch-row">
+          <input type="checkbox" id="setAutoSave" checked>
+          <span>Salvamento automático e backup contínuo</span>
+        </label>
+      </fieldset>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnSettingsReset">Restaurar padrões</button>
+        <button type="button" class="btn btn-primary" id="btnSettingsClose">Concluir</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Backup -->
+  <section class="modal" id="modalBackup" role="dialog" aria-modal="true" aria-labelledby="mbTitle" hidden>
+    <header class="modal-head">
+      <h3 id="mbTitle">Backup e recuperação</h3>
+      <button type="button" class="icon-x" data-close="1" aria-label="Fechar">✕</button>
+    </header>
+    <div class="modal-body">
+      <div class="backup-block">
+        <h4>Exportar</h4>
+        <p class="hint">Baixe um arquivo JSON com partida atual, última partida, participantes, cartelas e configurações.</p>
+        <button type="button" class="btn btn-primary" id="btnExportJson">Baixar backup (.json)</button>
+      </div>
+      <div class="backup-block">
+        <h4>Importar</h4>
+        <p class="hint">Selecione um backup exportado anteriormente. Os dados atuais são preservados em uma cópia de segurança interna.</p>
+        <input type="file" id="importJsonFile" accept="application/json,.json" class="file-input">
+      </div>
+      <div class="backup-block">
+        <h4>Últimos jogos salvos</h4>
+        <div id="backupList" class="backup-list"></div>
+        <button type="button" class="btn btn-ghost" id="btnRestoreLastFinished">Recuperar última partida finalizada</button>
+      </div>
+      <div class="backup-block">
+        <h4>Zona de risco</h4>
+        <p class="hint">Remove cartelas e participantes do cadastro. A partida atual e os backups permanecem intactos.</p>
+        <button type="button" class="btn btn-ghost danger" id="btnResetData">Limpar cadastro de participantes e cartelas</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Histórico completo -->
+  <section class="modal" id="modalHistory" role="dialog" aria-modal="true" aria-labelledby="mhTitle" hidden>
+    <header class="modal-head">
+      <h3 id="mhTitle">Histórico da partida</h3>
+      <button type="button" class="icon-x" data-close="1" aria-label="Fechar">✕</button>
+    </header>
+    <div class="modal-body">
+      <ol class="history-list full" id="historyFull"></ol>
+    </div>
+  </section>
+
+  <!-- Importar CSV -->
+  <section class="modal" id="modalImport" role="dialog" aria-modal="true" aria-labelledby="miTitle" hidden>
+    <header class="modal-head">
+      <h3 id="miTitle">Importar CSV</h3>
+      <button type="button" class="icon-x" data-close="1" aria-label="Fechar">✕</button>
+    </header>
+    <div class="modal-body">
+      <p class="hint" id="importHint"></p>
+      <pre class="code-sample" id="importSample"></pre>
+      <input type="file" id="importCsvFile" accept=".csv,text/csv,text/plain" class="file-input">
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close="1">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnImportConfirm" disabled>Importar</button>
+      </div>
+      <p class="form-error" id="importError" hidden></p>
+      <p class="hint" id="importResult" hidden></p>
+    </div>
+  </section>
+
+  <!-- Confirmação -->
+  <section class="modal modal-confirm" id="modalConfirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" hidden>
+    <header class="modal-head">
+      <h3 id="confirmTitle">Confirmar</h3>
+    </header>
+    <div class="modal-body">
+      <p id="confirmMessage">Tem certeza?</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnConfirmNo">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmYes">Confirmar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Detalhe / edição de cartela -->
+  <section class="modal" id="modalCardView" role="dialog" aria-modal="true" aria-labelledby="mcvTitle" hidden>
+    <header class="modal-head">
+      <h3 id="mcvTitle">Cartela</h3>
+      <button type="button" class="icon-x" data-close="1" aria-label="Fechar">✕</button>
+    </header>
+    <div class="modal-body" id="cardViewBody"></div>
+  </section>
+</div>
+
+<div class="toast-host" id="toastHost" aria-live="polite"></div>
+
+<!-- ============================= SCRIPTS ============================= -->
+<script src="js/core.js"></script>
+<script src="js/persistence.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/voice.js"></script>
+<script src="js/players.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/winners.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
